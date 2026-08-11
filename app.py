@@ -21,6 +21,12 @@ depth_min, depth_max = float(df_all['MD'].min()), float(df_all['MD'].max())
 
 RT_FIXED_TICKS = [1, 10, 100, 1000]
 
+# ---- Fixed axis limits ----
+GR_MAX = 150
+
+NEU_MIN, NEU_MAX = -0.15, 0.45
+DEN_MIN, DEN_MAX = 1.9, 2.9
+
 
 def pick_default(candidates, fallback):
     for c in candidates:
@@ -110,11 +116,16 @@ with tab1:
                 ax.set_xticks(RT_FIXED_TICKS)
                 ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
                 ax.xaxis.set_minor_formatter(mticker.NullFormatter())
-            if y_log:
+
+            # Cap the Y axis at GR_MAX whenever GR is plotted on the Y axis
+            if y_col.upper() == 'GR':
+                if y_log:
+                    ax.set_yscale('log')
+                    ax.set_ylim(1, GR_MAX)
+                else:
+                    ax.set_ylim(0, GR_MAX)
+            elif y_log:
                 ax.set_yscale('log')
-                ax.set_ylim(1, 150)
-            else:
-                ax.set_ylim(0, 150)
 
             ax.set_title(f'Crossplot of {y_col} vs {x_col}')
             ax.set_xlabel(x_col + (' (log)' if x_log else ''))
@@ -162,10 +173,16 @@ with tab2:
                                  label=f'{well} (ref {top_r:.0f}-{bott_r:.0f})',
                                  color=color, s=40, alpha=0.75, marker='x', linewidth=1.2, zorder=2)
 
+            # Fixed axis scale for NEU-DEN crossplot
             if neu_invert:
-                ax.invert_xaxis()
+                ax.set_xlim(NEU_MAX, NEU_MIN)
+            else:
+                ax.set_xlim(NEU_MIN, NEU_MAX)
+
             if den_invert:
-                ax.invert_yaxis()
+                ax.set_ylim(DEN_MAX, DEN_MIN)
+            else:
+                ax.set_ylim(DEN_MIN, DEN_MAX)
 
             ax.set_title(f'NEU-DEN Crossplot ({den_col} vs {neu_col})')
             ax.set_xlabel(neu_col + (' (inverted)' if neu_invert else ''))
