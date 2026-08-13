@@ -19,13 +19,15 @@ well_list = sorted(df_all['WELL'].dropna().unique().tolist())
 numeric_cols = df_all.select_dtypes(include='number').columns.tolist()
 depth_min, depth_max = float(df_all['MD'].min()), float(df_all['MD'].max())
 
-RT_FIXED_TICKS = [1, 10, 100, 1000]
-
 # ---- Fixed axis limits ----
-GR_MAX = 150
+# GR-RT crossplot
+GR_MIN, GR_MAX = 0, 150
+RT_MIN, RT_MAX = 1, 200
+RT_FIXED_TICKS = [1, 10, 100, 200]
 
-NEU_MIN, NEU_MAX = -0.15, 0.45
-DEN_MIN, DEN_MAX = 1.9, 2.9
+# NEU-DEN crossplot
+NEU_MIN, NEU_MAX = -0.05, 0.45   # not inverted
+DEN_MIN, DEN_MAX = 1.8, 2.9      # inverted
 
 
 def pick_default(candidates, fallback):
@@ -72,21 +74,20 @@ for well in reference_wells:
 # =========================================================
 # Tabs — one per plot type
 # =========================================================
-tab1, tab2 = st.tabs(["Generic Crossplot", "NEU-DEN Crossplot"])
+tab1, tab2 = st.tabs(["GR-RT Crossplot", "NEU-DEN Crossplot"])
 
 # ---------------------------------------------------------
-# Generic Crossplot
+# GR-RT Crossplot (fixed scale: X = GR 0-150, Y = RT log10 up to 200)
 # ---------------------------------------------------------
 with tab1:
-    c1, c2, c3, c4 = st.columns(4)
-    x_col = c1.selectbox("X axis", numeric_cols,
-                          index=numeric_cols.index('RT') if 'RT' in numeric_cols else 0)
-    y_col = c2.selectbox("Y axis", numeric_cols,
-                          index=numeric_cols.index('GR') if 'GR' in numeric_cols else 1)
-    x_log = c3.checkbox("X axis log scale", value=True)
-    y_log = c4.checkbox("Y axis log scale", value=False)
+    gr_default = pick_default(['GR'], numeric_cols[0])
+    rt_default = pick_default(['RT'], numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
 
-    if st.button("Plot Crossplot", type="primary"):
+    c1, c2 = st.columns(2)
+    gr_col = c1.selectbox("GR column (X axis)", numeric_cols, index=numeric_cols.index(gr_default))
+    rt_col = c2.selectbox("RT column (Y axis, log)", numeric_cols, index=numeric_cols.index(rt_default))
+
+    if st.button("Plot GR-RT Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
             st.warning("Please select at least one well (Analyze or Reference).")
         else:
@@ -98,7 +99,7 @@ with tab1:
             for well, color in zip(analyze_wells, analyze_palette):
                 sub = df_all[(df_all['WELL'] == well) &
                              (df_all['MD'] >= top_a) & (df_all['MD'] <= bott_a)]
-                sns.scatterplot(data=sub, x=x_col, y=y_col, ax=ax,
+                sns.scatterplot(data=sub, x=gr_col, y=rt_col, ax=ax,
                                  label=f'{well} (analyze)', color=color, s=25, alpha=1.0,
                                  edgecolor='black', linewidth=0.4, zorder=3)
 
@@ -106,48 +107,40 @@ with tab1:
                 top_r, bott_r = reference_ranges[well]
                 sub = df_all[(df_all['WELL'] == well) &
                              (df_all['MD'] >= top_r) & (df_all['MD'] <= bott_r)]
-                sns.scatterplot(data=sub, x=x_col, y=y_col, ax=ax,
+                sns.scatterplot(data=sub, x=gr_col, y=rt_col, ax=ax,
                                  label=f'{well} (ref {top_r:.0f}-{bott_r:.0f})',
                                  color=color, s=40, alpha=0.75, marker='x', linewidth=1.2, zorder=2)
 
-            if x_log:
-                ax.set_xscale('log')
-                ax.set_xlim(RT_FIXED_TICKS[0], RT_FIXED_TICKS[-1])
-                ax.set_xticks(RT_FIXED_TICKS)
-                ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
-                ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+            # Fixed X axis: GR 0-150
+            ax.set_xlim(GR_MIN, GR_MAX)
 
-            # Cap the Y axis at GR_MAX whenever GR is plotted on the Y axis
-            if y_col.upper() == 'GR':
-                if y_log:
-                    ax.set_yscale('log')
-                    ax.set_ylim(1, GR_MAX)
-                else:
-                    ax.set_ylim(0, GR_MAX)
-            elif y_log:
-                ax.set_yscale('log')
+            # Fixed Y axis: RT log10, up to 200
+            ax.set_yscale('log')
+            ax.set_ylim(RT_MIN, RT_MAX)
+            ax.set_yticks(RT_FIXED_TICKS)
+            ax.yaxis.set_major_formatter(mticker.ScalarFormatter())
+            ax.yaxis.set_minor_formatter(mticker.NullFormatter())
 
-            ax.set_title(f'Crossplot of {y_col} vs {x_col}')
-            ax.set_xlabel(x_col + (' (log)' if x_log else ''))
-            ax.set_ylabel(y_col + (' (log)' if y_log else ''))
+            ax.set_title(f'GR-RT Crossplot ({rt_col} vs {gr_col})')
+            ax.set_xlabel(gr_col)
+            ax.set_ylabel(rt_col + ' (log)')
             ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
             ax.grid(True, which='both', alpha=0.3)
             fig.tight_layout()
             st.pyplot(fig)
 
 # ---------------------------------------------------------
-# NEU-DEN Crossplot
+# NEU-DEN Crossplot (fixed scale: NEU -0.05 to 0.45 not inverted,
+# DEN 1.8 to 2.9 inverted)
 # ---------------------------------------------------------
 with tab2:
     neu_default = pick_default(['NPHI', 'NEU', 'NEUT', 'PHIN'], numeric_cols[0])
     den_default = pick_default(['RHOB', 'DEN', 'RHOZ'],
                                 numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2 = st.columns(2)
     neu_col = c1.selectbox("NEU col", numeric_cols, index=numeric_cols.index(neu_default))
     den_col = c2.selectbox("DEN col", numeric_cols, index=numeric_cols.index(den_default))
-    neu_invert = c3.checkbox("Invert NEU axis (standard convention)", value=True)
-    den_invert = c4.checkbox("Invert DEN axis", value=True)
 
     if st.button("Plot NEU-DEN Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
@@ -174,19 +167,12 @@ with tab2:
                                  color=color, s=40, alpha=0.75, marker='x', linewidth=1.2, zorder=2)
 
             # Fixed axis scale for NEU-DEN crossplot
-            if neu_invert:
-                ax.set_xlim(NEU_MAX, NEU_MIN)
-            else:
-                ax.set_xlim(NEU_MIN, NEU_MAX)
-
-            if den_invert:
-                ax.set_ylim(DEN_MAX, DEN_MIN)
-            else:
-                ax.set_ylim(DEN_MIN, DEN_MAX)
+            ax.set_xlim(NEU_MIN, NEU_MAX)          # NEU: not inverted
+            ax.set_ylim(DEN_MAX, DEN_MIN)           # DEN: inverted
 
             ax.set_title(f'NEU-DEN Crossplot ({den_col} vs {neu_col})')
-            ax.set_xlabel(neu_col + (' (inverted)' if neu_invert else ''))
-            ax.set_ylabel(den_col + (' (inverted)' if den_invert else ''))
+            ax.set_xlabel(neu_col)
+            ax.set_ylabel(den_col + ' (inverted)')
             ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
             ax.grid(True, which='both', alpha=0.3)
             fig.tight_layout()
