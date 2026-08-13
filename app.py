@@ -80,12 +80,10 @@ tab1, tab2 = st.tabs(["GR-RT Crossplot", "NEU-DEN Crossplot"])
 # GR-RT Crossplot (fixed scale: X = GR 0-150, Y = RT log10 up to 200)
 # ---------------------------------------------------------
 with tab1:
-    gr_default = pick_default(['GR'], numeric_cols[0])
-    rt_default = pick_default(['RT'], numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
+    gr_col = pick_default(['GR', 'GAMMA', 'Gamma'], numeric_cols[0])
+    rt_col = pick_default(['RT'], numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
 
-    c1, c2 = st.columns(2)
-    gr_col = c1.selectbox("GR column (X axis)", numeric_cols, index=numeric_cols.index(gr_default))
-    rt_col = c2.selectbox("RT column (Y axis, log)", numeric_cols, index=numeric_cols.index(rt_default))
+    st.caption(f"Using columns — X: **{gr_col}**, Y: **{rt_col}**")
 
     if st.button("Plot GR-RT Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
@@ -134,13 +132,11 @@ with tab1:
 # DEN 1.8 to 2.9 inverted)
 # ---------------------------------------------------------
 with tab2:
-    neu_default = pick_default(['NPHI', 'NEU', 'NEUT', 'PHIN'], numeric_cols[0])
-    den_default = pick_default(['RHOB', 'DEN', 'RHOZ'],
-                                numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
+    neu_col = pick_default(['NEU', 'NPHI', 'NEUT', 'PHIN'], numeric_cols[0])
+    den_col = pick_default(['DEN', 'RHOB', 'RHOZ'],
+                            numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0])
 
-    c1, c2 = st.columns(2)
-    neu_col = c1.selectbox("NEU col", numeric_cols, index=numeric_cols.index(neu_default))
-    den_col = c2.selectbox("DEN col", numeric_cols, index=numeric_cols.index(den_default))
+    st.caption(f"Using columns — X: **{neu_col}**, Y: **{den_col}**")
 
     if st.button("Plot NEU-DEN Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
