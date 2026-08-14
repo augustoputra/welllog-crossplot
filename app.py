@@ -90,7 +90,6 @@ st.title("Well Log Crossplot Tool")
 st.sidebar.header("Well Selection")
 
 analyze_wells = st.sidebar.multiselect("Analyze wells", well_list)
-reference_wells = st.sidebar.multiselect("Reference wells", well_list)
 
 st.sidebar.subheader("Analyze depth range")
 col_a1, col_a2 = st.sidebar.columns(2)
@@ -101,20 +100,46 @@ bott_a = col_a2.number_input("Bottom", min_value=depth_min, max_value=depth_max,
 if top_a > bott_a:
     top_a, bott_a = bott_a, top_a
 
+# ---------------------------------------------------------
+# Reference wells — multiple intervals allowed, including
+# more than one interval on the SAME well.
+# ---------------------------------------------------------
 st.sidebar.subheader("Reference well depth ranges")
-reference_ranges = {}
-for well in reference_wells:
-    well_depths = df_all.loc[df_all['WELL'] == well, 'MD']
-    w_min, w_max = float(well_depths.min()), float(well_depths.max())
-    st.sidebar.markdown(f"**{well}**")
-    col_r1, col_r2 = st.sidebar.columns(2)
-    top_r = col_r1.number_input(f"{well} top", min_value=w_min, max_value=w_max,
-                                 value=w_min, step=1.0, key=f"{well}_top")
-    bott_r = col_r2.number_input(f"{well} bottom", min_value=w_min, max_value=w_max,
-                                  value=w_max, step=1.0, key=f"{well}_bottom")
-    if top_r > bott_r:
-        top_r, bott_r = bott_r, top_r
-    reference_ranges[well] = (top_r, bott_r)
+
+if "reference_entries" not in st.session_state:
+    st.session_state.reference_entries = []  # list of {id, well, top, bottom}
+
+ref_well_pick = st.sidebar.selectbox("Well to add", well_list, key="ref_well_pick")
+w_depths = df_all.loc[df_all['WELL'] == ref_well_pick, 'MD']
+w_min, w_max = float(w_depths.min()), float(w_depths.max())
+
+col_r1, col_r2 = st.sidebar.columns(2)
+ref_top_new = col_r1.number_input("Top", min_value=w_min, max_value=w_max,
+                                   value=w_min, step=1.0, key="ref_top_new")
+ref_bott_new = col_r2.number_input("Bottom", min_value=w_min, max_value=w_max,
+                                    value=w_max, step=1.0, key="ref_bott_new")
+
+if st.sidebar.button("+ Add reference interval"):
+    top_v, bott_v = ref_top_new, ref_bott_new
+    if top_v > bott_v:
+        top_v, bott_v = bott_v, top_v
+    new_id = max([e['id'] for e in st.session_state.reference_entries], default=0) + 1
+    st.session_state.reference_entries.append({
+        'id': new_id, 'well': ref_well_pick, 'top': top_v, 'bottom': bott_v
+    })
+
+if st.session_state.reference_entries:
+    st.sidebar.markdown("**Current reference intervals**")
+    for entry in list(st.session_state.reference_entries):
+        rcol1, rcol2 = st.sidebar.columns([4, 1])
+        rcol1.write(f"{entry['well']}: {entry['top']:.0f}–{entry['bottom']:.0f}")
+        if rcol2.button("✕", key=f"del_ref_{entry['id']}"):
+            st.session_state.reference_entries = [
+                e for e in st.session_state.reference_entries if e['id'] != entry['id']
+            ]
+            st.rerun()
+
+reference_entries = st.session_state.reference_entries
 
 # =========================================================
 # Tabs — one per plot type
@@ -131,13 +156,13 @@ with tab1:
     st.caption(f"Using columns — X: **{gr_col}**, Y: **{rt_col}**")
 
     if st.button("Plot GR-RT Crossplot", type="primary"):
-        if not analyze_wells and not reference_wells:
+        if not analyze_wells and not reference_entries:
             st.warning("Please select at least one well (Analyze or Reference).")
         else:
             fig, ax = plt.subplots(figsize=(12, 8))
 
             analyze_palette = sns.color_palette("dark", len(analyze_wells))
-            reference_palette = sns.color_palette("colorblind", len(reference_wells))
+            reference_palette = sns.color_palette("colorblind", len(reference_entries))
 
             for well, color in zip(analyze_wells, analyze_palette):
                 sub = df_all[(df_all['WELL'] == well) &
@@ -146,8 +171,8 @@ with tab1:
                                  label=f'{well} (analyze)', color=color, s=25, alpha=1.0,
                                  edgecolor='black', linewidth=0.4, zorder=3)
 
-            for well, color in zip(reference_wells, reference_palette):
-                top_r, bott_r = reference_ranges[well]
+            for entry, color in zip(reference_entries, reference_palette):
+                well, top_r, bott_r = entry['well'], entry['top'], entry['bottom']
                 sub = df_all[(df_all['WELL'] == well) &
                              (df_all['MD'] >= top_r) & (df_all['MD'] <= bott_r)]
                 sns.scatterplot(data=sub, x=gr_col, y=rt_col, ax=ax,
@@ -186,13 +211,13 @@ with tab2:
     show_grid = st.checkbox("Show lithology porosity grid", value=True)
 
     if st.button("Plot NEU-DEN Crossplot", type="primary"):
-        if not analyze_wells and not reference_wells:
+        if not analyze_wells and not reference_entries:
             st.warning("Please select at least one well (Analyze or Reference).")
         else:
             fig, ax = plt.subplots(figsize=(10, 9))
 
             analyze_palette = sns.color_palette("dark", len(analyze_wells))
-            reference_palette = sns.color_palette("colorblind", len(reference_wells))
+            reference_palette = sns.color_palette("colorblind", len(reference_entries))
 
             for well, color in zip(analyze_wells, analyze_palette):
                 sub = df_all[(df_all['WELL'] == well) &
@@ -201,8 +226,8 @@ with tab2:
                                  label=f'{well} (analyze)', color=color, s=25, alpha=1.0,
                                  edgecolor='black', linewidth=0.4, zorder=3)
 
-            for well, color in zip(reference_wells, reference_palette):
-                top_r, bott_r = reference_ranges[well]
+            for entry, color in zip(reference_entries, reference_palette):
+                well, top_r, bott_r = entry['well'], entry['top'], entry['bottom']
                 sub = df_all[(df_all['WELL'] == well) &
                              (df_all['MD'] >= top_r) & (df_all['MD'] <= bott_r)]
                 sns.scatterplot(data=sub, x=neu_col, y=den_col, ax=ax,
