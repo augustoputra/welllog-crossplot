@@ -75,19 +75,6 @@ def draw_lithology_grid(ax, phi_max=0.45):
                     fontsize=6.5, color='dimgray', zorder=1)
 
 
-def draw_trend_arrows(ax):
-    """Generic hydrocarbon/water trend arrows (illustrative, not tied to data)."""
-    ax.annotate('', xy=(0.12, 2.20), xytext=(0.28, 2.05),
-                arrowprops=dict(arrowstyle='-|>', color='red', lw=2))
-    ax.text(0.15, 2.15, 'HC Trend', color='red', fontsize=9, rotation=-30,
-            ha='center', va='center', fontweight='bold')
-
-    ax.annotate('', xy=(0.34, 2.10), xytext=(0.20, 2.28),
-                arrowprops=dict(arrowstyle='-|>', color='blue', lw=2))
-    ax.text(0.31, 2.16, 'Water Trend', color='blue', fontsize=9, rotation=-30,
-            ha='center', va='center', fontweight='bold')
-
-
 def pick_default(candidates, fallback):
     for c in candidates:
         if c in numeric_cols:
@@ -196,9 +183,7 @@ with tab2:
 
     st.caption(f"Using columns — X: **{neu_col}**, Y: **{den_col}**")
 
-    gc1, gc2 = st.columns(2)
-    show_grid = gc1.checkbox("Show lithology porosity grid", value=True)
-    show_arrows = gc2.checkbox("Show HC/Water trend arrows", value=False)
+    show_grid = st.checkbox("Show lithology porosity grid", value=True)
 
     if st.button("Plot NEU-DEN Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
@@ -226,8 +211,6 @@ with tab2:
 
             if show_grid:
                 draw_lithology_grid(ax)
-            if show_arrows:
-                draw_trend_arrows(ax)
 
             # Fixed axis scale for NEU-DEN crossplot
             ax.set_xlim(NEU_MIN, NEU_MAX)          # NEU: not inverted
