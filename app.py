@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import seaborn as sns
@@ -28,6 +29,63 @@ RT_FIXED_TICKS = [1, 10, 100, 200]
 # NEU-DEN crossplot
 NEU_MIN, NEU_MAX = -0.05, 0.45   # not inverted
 DEN_MIN, DEN_MAX = 1.8, 2.9      # inverted
+
+# ---- Generic lithology / porosity grid for the NEU-DEN crossplot ----
+# Matrix points (zero-porosity end) and fluid point (100%-porosity end).
+# Values are standard rock/fluid properties, not a copy of any vendor chart.
+LITHOLOGY_MATRIX = {
+    'Sandstone': {'rho_ma': 2.644, 'nphi_ma': -0.02, 'color': '#b8860b'},
+    'Limestone': {'rho_ma': 2.706, 'nphi_ma': 0.00,  'color': '#1f6f8b'},
+    'Dolomite':  {'rho_ma': 2.845, 'nphi_ma': 0.035, 'color': '#2e7d32'},
+}
+RHO_FLUID, NPHI_FLUID = 1.0, 1.0   # fresh-water/fluid point at 100% porosity
+POROSITY_TICKS = np.arange(0.05, 0.46, 0.05)
+
+
+def litho_point(rho_ma, nphi_ma, phi):
+    """Point on a matrix-to-fluid porosity line at a given porosity fraction."""
+    rhob = rho_ma * (1 - phi) + RHO_FLUID * phi
+    nphi = nphi_ma * (1 - phi) + NPHI_FLUID * phi
+    return nphi, rhob
+
+
+def draw_lithology_grid(ax, phi_max=0.45):
+    """Draw sandstone/limestone/dolomite matrix lines plus iso-porosity
+    connector lines, mimicking a standard neutron-density lithology chart."""
+    phi_line = np.linspace(0, phi_max, 100)
+
+    # Matrix -> fluid fan lines
+    for name, props in LITHOLOGY_MATRIX.items():
+        nphi_vals, rhob_vals = zip(*[litho_point(props['rho_ma'], props['nphi_ma'], p) for p in phi_line])
+        ax.plot(nphi_vals, rhob_vals, color=props['color'], lw=1.3, alpha=0.8, zorder=1)
+        # Matrix point label at phi = 0
+        ax.plot(props['nphi_ma'], props['rho_ma'], 'o', color=props['color'], ms=3, zorder=1)
+        ax.annotate(f"{props['rho_ma']:.3f}", (props['nphi_ma'], props['rho_ma']),
+                    textcoords="offset points", xytext=(-4, -4), fontsize=7,
+                    color=props['color'], ha='right', va='top')
+
+    # Iso-porosity connector lines across the three lithology lines
+    order = ['Sandstone', 'Limestone', 'Dolomite']
+    for phi in POROSITY_TICKS:
+        pts = [litho_point(LITHOLOGY_MATRIX[n]['rho_ma'], LITHOLOGY_MATRIX[n]['nphi_ma'], phi) for n in order]
+        xs, ys = zip(*pts)
+        ax.plot(xs, ys, color='gray', lw=0.6, alpha=0.6, zorder=1)
+        # Label near the limestone (middle) point
+        ax.annotate(f"{phi:.2f}", pts[1], textcoords="offset points", xytext=(2, 3),
+                    fontsize=6.5, color='dimgray', zorder=1)
+
+
+def draw_trend_arrows(ax):
+    """Generic hydrocarbon/water trend arrows (illustrative, not tied to data)."""
+    ax.annotate('', xy=(0.12, 2.20), xytext=(0.28, 2.05),
+                arrowprops=dict(arrowstyle='-|>', color='red', lw=2))
+    ax.text(0.15, 2.15, 'HC Trend', color='red', fontsize=9, rotation=-30,
+            ha='center', va='center', fontweight='bold')
+
+    ax.annotate('', xy=(0.34, 2.10), xytext=(0.20, 2.28),
+                arrowprops=dict(arrowstyle='-|>', color='blue', lw=2))
+    ax.text(0.31, 2.16, 'Water Trend', color='blue', fontsize=9, rotation=-30,
+            ha='center', va='center', fontweight='bold')
 
 
 def pick_default(candidates, fallback):
@@ -138,6 +196,10 @@ with tab2:
 
     st.caption(f"Using columns — X: **{neu_col}**, Y: **{den_col}**")
 
+    gc1, gc2 = st.columns(2)
+    show_grid = gc1.checkbox("Show lithology porosity grid", value=True)
+    show_arrows = gc2.checkbox("Show HC/Water trend arrows", value=False)
+
     if st.button("Plot NEU-DEN Crossplot", type="primary"):
         if not analyze_wells and not reference_wells:
             st.warning("Please select at least one well (Analyze or Reference).")
@@ -161,6 +223,11 @@ with tab2:
                 sns.scatterplot(data=sub, x=neu_col, y=den_col, ax=ax,
                                  label=f'{well} (ref {top_r:.0f}-{bott_r:.0f})',
                                  color=color, s=40, alpha=0.75, marker='x', linewidth=1.2, zorder=2)
+
+            if show_grid:
+                draw_lithology_grid(ax)
+            if show_arrows:
+                draw_trend_arrows(ax)
 
             # Fixed axis scale for NEU-DEN crossplot
             ax.set_xlim(NEU_MIN, NEU_MAX)          # NEU: not inverted
