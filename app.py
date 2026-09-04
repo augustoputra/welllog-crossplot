@@ -8,11 +8,11 @@ import seaborn as sns
 st.set_page_config(page_title="Well Log Crossplot Tool", layout="wide")
 
 # ---- Load data once (cached so it doesn't re-read the file on every interaction) ----
-FILE_PATH = 'database.xlsx'
+FILE_PATH = 'database.xlsb'
 
 @st.cache_data
 def load_data(path):
-    return pd.read_excel(path)
+    return pd.read_excel(path, engine='pyxlsb')
 
 df_all = load_data(FILE_PATH)
 
