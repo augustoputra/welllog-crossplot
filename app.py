@@ -4,17 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import seaborn as sns
+import os
 
 st.set_page_config(page_title="Well Log Crossplot Tool", layout="wide")
 
-# ---- Load data once (cached so it doesn't re-read the file on every interaction) ----
+# ---- Load data once (cached, but re-reads automatically if the file changes) ----
 FILE_PATH = 'database.xlsb'
 
 @st.cache_data
-def load_data(path):
+def load_data(path, _file_signature):
     return pd.read_excel(path, engine='pyxlsb')
 
-df_all = load_data(FILE_PATH)
+file_signature = os.path.getmtime(FILE_PATH)  # changes whenever the file is replaced/updated
+df_all = load_data(FILE_PATH, file_signature)
 
 well_list = sorted(df_all['WELL'].dropna().unique().tolist())
 numeric_cols = df_all.select_dtypes(include='number').columns.tolist()
